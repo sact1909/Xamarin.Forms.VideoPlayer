@@ -3,7 +3,9 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using ChillPlayer.Models;
 using ChillPlayer.Web;
+using Newtonsoft.Json;
 using Octane.Xamarin.Forms.VideoPlayer;
 using Xamarin.Forms;
 using Xamarin.Forms.Xaml;
@@ -48,23 +50,25 @@ namespace ChillPlayer.MarkupExtensions
                 {
                     var videoPageContent = client.GetStringAsync(videoInfoUrl).Result;
                     var videoParameters = HttpUtility.ParseQueryString(videoPageContent);
-                    var encodedStreamsDelimited = WebUtility.HtmlDecode(videoParameters["url_encoded_fmt_stream_map"]);
-                    var encodedStreams = encodedStreamsDelimited.Split(',');
-                    var streams = encodedStreams.Select(HttpUtility.ParseQueryString);
+                    var encodedStreamsDelimited = WebUtility.HtmlDecode(videoParameters["player_response"]);
+                    var result = JsonConvert.DeserializeObject<YouTubeStramingData>(encodedStreamsDelimited);
+                   
+                    var streams = result.StreamingData.AdaptiveFormats;
 
                     var streamsByPriority = streams
                         .OrderBy(s =>
                         {
-                            var type = s["type"];
-                            if (type.Contains("video/mp4")) return 10;
-                            if (type.Contains("video/3gpp")) return 20;
-                            if (type.Contains("video/x-flv")) return 30;
-                            if (type.Contains("video/webm")) return 40;
+
+                            //var type = s["type"];
+                            if (s.MimeType.Contains("video/mp4")) return 10;
+                            if (s.MimeType.Contains("video/3gpp")) return 20;
+                            if (s.MimeType.Contains("video/x-flv")) return 30;
+                            if (s.MimeType.Contains("video/webm")) return 40;
                             return int.MaxValue;
                         })
                         .ThenBy(s =>
                         {
-                            var quality = s["quality"];
+                            var quality = s.Quality;
 
                             switch (Device.Idiom)
                             {
@@ -76,8 +80,8 @@ namespace ChillPlayer.MarkupExtensions
                         })
                         .FirstOrDefault();
 
-                    Debug.WriteLine($"Stream URL: {streamsByPriority["url"]}");
-					return VideoSource.FromUri(streamsByPriority["url"]);
+                    Debug.WriteLine($"Stream URL: {streamsByPriority.Url}");
+					return VideoSource.FromUri(streamsByPriority.Url);
                 }
             }
             catch (Exception ex)
